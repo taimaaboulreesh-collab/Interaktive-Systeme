@@ -1,26 +1,31 @@
 #include <Servo.h>
 
-Servo servo;
+Servo servo1;
 
-#define SERVO_PIN 8
+#define SERVO1_PIN 8
+
 const int trigPin = 5;
 const int echoPin = 4;
+
 const int bluePin = 11;
 const int greenPin = 10;
 const int redPin = 9;
+
+const int redPin2 = 2;
+const int greenPin2 = 3;
+const int bluePin2 = 12;
+
 const int buzzerPin = 7;
 
-// --- EINSTELLUNGEN ---
-const int WINKEL_OFFEN = 100;
-const int WINKEL_ZU = 5;
-const int SERVO_SPEED = 25; // ms pro Grad
+const int WINKEL_OFFEN = 120;
+const int WINKEL_ZU = 67;
+const int SERVO_SPEED = 35; // ms pro Grad
 
-// Ultraschall-Einstellungen
 const int ABSTAND_START = 10;   // cm: Hand vor den Sensor halten zum Schließen
-const int ABSTAND_WARNUNG = 40; // cm: Wenn man der geschlossenen Box zu nahe kommt
+const int ABSTAND_WARNUNG = 7; // cm: Wenn man der geschlossenen Box zu nahe kommt
 
-const unsigned long START_VERZOEGERUNG = 3000; // 3 Sekunden warten vor Start
-const unsigned long FOKUS_ZEIT = 15000;        // Timer in ms (15 Sekunden)
+const unsigned long START_VERZOEGERUNG = 2000; // 3 Sekunden warten vor Start
+const unsigned long FOKUS_ZEIT = 20000;        
 
 // --- ZUSTEANDE ---
 enum BoxZustand {
@@ -41,13 +46,19 @@ int fehlerZaehler = 0;
 void setup() {
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
+  
   pinMode(bluePin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   pinMode(redPin, OUTPUT);
+
+  pinMode(redPin2, OUTPUT);
+  pinMode(greenPin2, OUTPUT);
+  pinMode(bluePin2, OUTPUT);
+  
   pinMode(buzzerPin, OUTPUT);
 
-  servo.attach(SERVO_PIN);
-  servo.write(WINKEL_OFFEN); 
+  servo1.attach(SERVO1_PIN);
+  servo1.write(WINKEL_OFFEN); 
   
   Serial.begin(9600);
 }
@@ -56,6 +67,10 @@ void setLED(int r, int g, int b) {
   analogWrite(redPin, r);
   analogWrite(greenPin, g);
   analogWrite(bluePin, b);
+
+  analogWrite(redPin2, r);
+  analogWrite(greenPin2, g);
+  analogWrite(bluePin2, b);
 }
 
 float messeAbstand() {
@@ -74,14 +89,27 @@ float messeAbstand() {
 void bewegeServoLangsam(int startWinkel, int zielWinkel) {
   if (startWinkel < zielWinkel) {
     for (int pos = startWinkel; pos <= zielWinkel; pos++) {
-      servo.write(pos);
+      servo1.write(pos); 
       delay(SERVO_SPEED);
     }
   } else {
     for (int pos = startWinkel; pos >= zielWinkel; pos--) {
-      servo.write(pos);
+      servo1.write(pos);
       delay(SERVO_SPEED);
     }
+  }
+}
+
+void spieleErfolgsMelodie() {
+  // Tonabfolge (C5, E5, G5, C6)
+  int melodie[] = {523, 659, 784, 1047}; 
+  int tonDauer[] = {150, 150, 150, 400}; // Die ersten Töne kurz, der letzte lang
+
+  for (int i = 0; i < 4; i++) {
+    tone(buzzerPin, melodie[i]);
+    delay(tonDauer[i]);
+    noTone(buzzerPin);
+    delay(30); 
   }
 }
 
@@ -90,7 +118,8 @@ void loop() {
   
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint > 200) {
-    Serial.print("Abstand: "); Serial.println(abstand);
+    Serial.print("Abstand: "); 
+    Serial.println(abstand);
     lastPrint = millis();
   }
 
@@ -110,7 +139,7 @@ void loop() {
       // Gelb blinken
       if ((millis() / 500) % 2 == 0) {
         setLED(255, 255, 0); 
-        tone(buzzerPin, 500);
+        tone(buzzerPin, 1000);
       } else {
         setLED(0, 0, 0);    
         noTone(buzzerPin);
@@ -150,9 +179,16 @@ void loop() {
       // Wenn die letzte Annäherung weniger als 500ms her ist, erzwinge ROT
       if (millis() - letzteWarnungMillis < 500) {
         setLED(255, 0, 0); // Reines ROT
-        tone(buzzerPin, 200); 
+
+        if ((millis() / 150) % 2 == 0) {
+          tone(buzzerPin, 800); // 800 Hz ist ein klarer, freundlicherer Piepton
+        } else {
+          noTone(buzzerPin);
+        }
+        
+         
       } else {
-        setLED(0, 0, 255); // Reines GRÜN
+        setLED(0, 0, 255); // Blau
         noTone(buzzerPin);
       }
       
@@ -163,10 +199,9 @@ void loop() {
       break;
 
     case BOX_OEFFNET:
-      setLED(255, 255, 0); // Gelb
-      tone(buzzerPin, 1000, 300);
-      delay(400);
-      tone(buzzerPin, 1500, 500); 
+      setLED(0, 255, 0); // Grün
+
+      spieleErfolgsMelodie();
       
       bewegeServoLangsam(WINKEL_ZU, WINKEL_OFFEN);
       zustand = BOX_FERTIG;
